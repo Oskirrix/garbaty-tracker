@@ -32,6 +32,7 @@ const API_KEY = process.env.API_KEY || 'change-me';
 const ACTIVE_WINDOW_MINUTES = 5;
 
 async function initDb() {
+  // Tabela "na żywo" - kto jest aktywny TERAZ, kluczowana po nicku postaci.
   await pool.query(`
     CREATE TABLE IF NOT EXISTS players (
       id SERIAL PRIMARY KEY,
@@ -40,6 +41,21 @@ async function initDb() {
       premium BOOLEAN DEFAULT false,
       active_addons TEXT[] DEFAULT '{}',
       last_seen TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `);
+
+  // Tabela historii - TRWAŁA, nigdy nie kasowana automatycznie.
+  // Kluczowana po account_id, żeby ta sama osoba (różne postacie na tym samym koncie)
+  // nie duplikowała się na liście.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS players_history (
+      account_id TEXT PRIMARY KEY,
+      last_nick TEXT NOT NULL,
+      premium BOOLEAN DEFAULT false,
+      active_addons TEXT[] DEFAULT '{}',
+      first_seen TIMESTAMPTZ NOT NULL DEFAULT now(),
+      last_seen TIMESTAMPTZ NOT NULL DEFAULT now(),
+      times_seen INTEGER NOT NULL DEFAULT 1
     );
   `);
 }
@@ -64,7 +80,10 @@ app.post('/api/heartbeat', checkAuth, async (req, res) => {
     ? activeAddons.filter(a => typeof a === 'string').slice(0, 100)
     : [];
 
+  const safeAccountId = accountId ? String(accountId).slice(0, 100) : null;
+
   try {
+    // Tabela "na żywo" - jak dotychczas.
     await pool.query(
       `INSERT INTO players (nick, account_id, premium, active_addons, last_seen)
        VALUES ($1, $2, $3, $4, now())
@@ -73,8 +92,25 @@ app.post('/api/heartbeat', checkAuth, async (req, res) => {
          premium = EXCLUDED.premium,
          active_addons = EXCLUDED.active_addons,
          last_seen = now();`,
-      [nick, accountId ? String(accountId).slice(0, 100) : null, !!premium, safeAddons]
+      [nick, safeAccountId, !!premium, safeAddons]
     );
+
+    // Tabela historii - tylko jeśli mamy account_id (bez niego nie da się sensownie deduplikować).
+    // Wpis NIGDY nie jest kasowany, tylko aktualizowany last_seen / times_seen.
+    if (safeAccountId) {
+      await pool.query(
+        `INSERT INTO players_history (account_id, last_nick, premium, active_addons, first_seen, last_seen, times_seen)
+         VALUES ($1, $2, $3, $4, now(), now(), 1)
+         ON CONFLICT (account_id) DO UPDATE SET
+           last_nick = EXCLUDED.last_nick,
+           premium = EXCLUDED.premium,
+           active_addons = EXCLUDED.active_addons,
+           last_seen = now(),
+           times_seen = players_history.times_seen + 1;`,
+        [safeAccountId, nick, !!premium, safeAddons]
+      );
+    }
+
     res.json({ ok: true });
   } catch (err) {
     console.error('heartbeat error', err);
@@ -94,6 +130,21 @@ app.get('/api/active', async (req, res) => {
     res.json(result.rows);
   } catch (err) {
     console.error('active list error', err);
+    res.status(500).json({ error: 'server error' });
+  }
+});
+
+// Pełna historia - WSZYSCY, którzy kiedykolwiek wysłali heartbeat. Nigdy się nie czyści.
+app.get('/api/history', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT account_id, last_nick, premium, active_addons, first_seen, last_seen, times_seen
+       FROM players_history
+       ORDER BY last_seen DESC;`
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('history list error', err);
     res.status(500).json({ error: 'server error' });
   }
 });

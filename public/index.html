@@ -2,95 +2,139 @@
 <html lang="pl">
 <head>
 <meta charset="UTF-8">
-<title>Garbaty Panel – Gracze</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Garbaty Panel – Konta</title>
 <style>
-  body { background:#12121a; color:#eee; font-family: 'Segoe UI', sans-serif; margin:0; padding:30px; }
-  h1 { color:#6c5ce7; font-size:16px; margin-bottom:4px; }
-  .sub { color:#666; font-size:11px; margin-bottom:20px; }
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { background:#12121a; color:#eee; font-family:'Segoe UI',sans-serif; margin:0; padding:30px; }
+  h1 { color:#6c5ce7; font-size:16px; margin:0 0 4px; }
+  .sub { color:#777; font-size:11px; margin-bottom:16px; }
   section { margin-bottom:40px; }
-  table { width:100%; border-collapse: collapse; margin-top:12px; }
-  th, td { text-align:left; padding:8px 12px; border-bottom:1px solid #2a2a3a; font-size:13px; }
+  .table-wrap { overflow-x:auto; }
+  table { width:100%; min-width:980px; border-collapse:collapse; margin-top:12px; }
+  th, td { text-align:left; padding:8px 12px; border-bottom:1px solid #2a2a3a; font-size:13px; white-space:nowrap; }
   th { color:#888; text-transform:uppercase; font-size:11px; }
-  tr:hover { background: rgba(255,255,255,0.03); }
+  tr:hover { background:rgba(255,255,255,.03); }
+  a.account-link { color:#8f82ff; text-decoration:none; font-weight:600; }
+  a.account-link:hover { text-decoration:underline; }
   .premium { color:#ffca28; font-weight:bold; }
   .free { color:#666; }
-  .addons { color:#888; font-size:11px; }
+  .addons { color:#888; font-size:11px; max-width:380px; white-space:normal; }
+  .clan { color:#d7c8ff; }
   .empty { color:#555; padding:20px; text-align:center; }
-  .status { font-size:12px; color:#00ffa3; margin-bottom:6px; }
+  .status { font-size:12px; color:#00ffa3; margin:8px 0 6px; }
   .live-dot { color:#00ffa3; }
   .hist-dot { color:#6c5ce7; }
-  input#search { background:#1a1a24; border:1px solid #2d2d3d; color:#fff; padding:6px 10px; border-radius:4px; font-size:12px; width:240px; margin-top:8px; }
+  #search { background:#1a1a24; border:1px solid #2d2d3d; color:#fff; padding:7px 10px; border-radius:4px; font-size:12px; width:320px; max-width:100%; margin-top:8px; }
+  .legacy { color:#ff9f43; font-size:11px; }
 </style>
 </head>
 <body>
 
-  <section>
-    <h1><span class="live-dot">●</span> Aktywni teraz (ostatnie 5 minut)</h1>
-    <div class="status" id="status-active">Ładowanie...</div>
+<section>
+  <h1><span class="live-dot">●</span> Aktywne konta (ostatnie 5 minut)</h1>
+  <div class="sub">Zmiana postaci na tym samym koncie nie tworzy drugiego aktywnego użytkownika.</div>
+  <div class="status" id="status-active">Ładowanie...</div>
+  <div class="table-wrap">
     <table id="table-active" style="display:none">
       <thead>
-        <tr><th>Nick</th><th>ID konta</th><th>Świat</th><th>Status</th><th>Aktywne dodatki</th><th>Ostatnio widziany</th></tr>
+        <tr>
+          <th>ID konta</th>
+          <th>Nick postaci</th>
+          <th>Klan</th>
+          <th>Świat</th>
+          <th>Status</th>
+          <th>Aktywne dodatki</th>
+          <th>Wersja</th>
+          <th>Ostatnio</th>
+        </tr>
       </thead>
       <tbody id="tbody-active"></tbody>
     </table>
-    <div class="empty" id="empty-active" style="display:none">Brak aktywnych graczy.</div>
-  </section>
+  </div>
+  <div class="empty" id="empty-active" style="display:none">Brak aktywnych kont.</div>
+</section>
 
-  <section>
-    <h1><span class="hist-dot">●</span> Historia – wszyscy, którzy kiedykolwiek użyli</h1>
-    <div class="sub">Ta lista nigdy się nie czyści. Grupowana po ID konta.</div>
-    <input type="text" id="search" placeholder="Szukaj po nicku lub ID konta...">
-    <div class="status" id="status-history">Ładowanie...</div>
+<section>
+  <h1><span class="hist-dot">●</span> Spis kont</h1>
+  <div class="sub">Lista jest grupowana po prawdziwym ID konta Margonem. ID otwiera profil konta.</div>
+  <input type="text" id="search" placeholder="Szukaj po ID, nicku, klanie lub świecie...">
+  <div class="status" id="status-history">Ładowanie...</div>
+  <div class="table-wrap">
     <table id="table-history" style="display:none">
       <thead>
-        <tr><th>ID konta</th><th>Ostatni nick</th><th>Świat</th><th>Status</th><th>Ile razy widziany</th><th>Pierwszy raz</th><th>Ostatnio</th></tr>
+        <tr>
+          <th>ID konta</th>
+          <th>Ostatni nick</th>
+          <th>Klan</th>
+          <th>Świat</th>
+          <th>Status</th>
+          <th>Wersja</th>
+          <th>Ile razy widziany</th>
+          <th>Pierwszy raz</th>
+          <th>Ostatnio</th>
+        </tr>
       </thead>
       <tbody id="tbody-history"></tbody>
     </table>
-    <div class="empty" id="empty-history" style="display:none">Brak danych.</div>
-  </section>
+  </div>
+  <div class="empty" id="empty-history" style="display:none">Brak poprawnie rozpoznanych kont.</div>
+</section>
 
 <script>
 let historyData = [];
 
-function escapeHtml(str) {
-  const d = document.createElement('div');
-  d.textContent = str;
-  return d.innerHTML;
+function escapeHtml(value) {
+  const div = document.createElement('div');
+  div.textContent = value === null || value === undefined ? '' : String(value);
+  return div.innerHTML;
 }
 
-async function refreshActive() {
-  try {
-    const res = await fetch('/api/active');
-    const data = await res.json();
-    const tbody = document.getElementById('tbody-active');
-    const table = document.getElementById('table-active');
-    const empty = document.getElementById('empty-active');
-    const status = document.getElementById('status-active');
+function accountCell(accountId) {
+  const id = String(accountId || '').trim();
+  if (!/^\d+$/.test(id)) return '<span class="legacy">oczekuje na aktualizację</span>';
+  const href = `https://www.margonem.pl/profile/view,${encodeURIComponent(id)}`;
+  return `<a class="account-link" href="${href}" target="_blank" rel="noopener noreferrer">${escapeHtml(id)}</a>`;
+}
 
-    status.textContent = `Ostatnia aktualizacja: ${new Date().toLocaleTimeString('pl-PL')} • ${data.length} graczy`;
+function formatDate(value, withDate = true) {
+  if (!value) return '—';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+  return withDate
+    ? date.toLocaleString('pl-PL')
+    : date.toLocaleTimeString('pl-PL');
+}
 
-    if (!data.length) {
-      table.style.display = 'none';
-      empty.style.display = 'block';
-      return;
-    }
-    table.style.display = 'table';
-    empty.style.display = 'none';
+function renderActive(data) {
+  const tbody = document.getElementById('tbody-active');
+  const table = document.getElementById('table-active');
+  const empty = document.getElementById('empty-active');
+  const status = document.getElementById('status-active');
 
-    tbody.innerHTML = data.map(p => `
-      <tr>
-        <td>${escapeHtml(p.nick)}</td>
-        <td>${escapeHtml(p.account_id || '—')}</td>
-        <td>${escapeHtml(p.world || '—')}</td>
-        <td class="${p.premium ? 'premium' : 'free'}">${p.premium ? 'Premium' : 'Free'}</td>
-        <td class="addons">${(p.active_addons || []).join(', ') || '—'}</td>
-        <td>${new Date(p.last_seen).toLocaleTimeString('pl-PL')}</td>
-      </tr>
-    `).join('');
-  } catch (e) {
-    document.getElementById('status-active').textContent = 'Błąd pobierania danych.';
+  status.textContent = `Ostatnia aktualizacja: ${new Date().toLocaleTimeString('pl-PL')} • online: ${data.length}`;
+
+  if (!data.length) {
+    table.style.display = 'none';
+    empty.style.display = 'block';
+    return;
   }
+
+  table.style.display = 'table';
+  empty.style.display = 'none';
+  tbody.innerHTML = data.map(p => `
+    <tr>
+      <td>${accountCell(p.account_id)}</td>
+      <td>${escapeHtml(p.nick || '—')}</td>
+      <td class="clan">${escapeHtml(p.clan || '—')}</td>
+      <td>${escapeHtml(p.world || '—')}</td>
+      <td class="${p.premium ? 'premium' : 'free'}">${p.premium ? 'Premium' : 'Free'}</td>
+      <td class="addons">${escapeHtml((p.active_addons || []).join(', ') || '—')}</td>
+      <td>${escapeHtml(p.panel_version || '—')}</td>
+      <td>${formatDate(p.last_seen, false)}</td>
+    </tr>
+  `).join('');
 }
 
 function renderHistory(data) {
@@ -103,45 +147,63 @@ function renderHistory(data) {
     empty.style.display = 'block';
     return;
   }
+
   table.style.display = 'table';
   empty.style.display = 'none';
-
   tbody.innerHTML = data.map(p => `
     <tr>
-      <td>${escapeHtml(p.account_id)}</td>
-      <td>${escapeHtml(p.last_nick)}</td>
+      <td>${accountCell(p.account_id)}</td>
+      <td>${escapeHtml(p.last_nick || '—')}</td>
+      <td class="clan">${escapeHtml(p.clan || '—')}</td>
       <td>${escapeHtml(p.world || '—')}</td>
       <td class="${p.premium ? 'premium' : 'free'}">${p.premium ? 'Premium' : 'Free'}</td>
-      <td>${p.times_seen}</td>
-      <td>${new Date(p.first_seen).toLocaleString('pl-PL')}</td>
-      <td>${new Date(p.last_seen).toLocaleString('pl-PL')}</td>
+      <td>${escapeHtml(p.panel_version || '—')}</td>
+      <td>${Number(p.times_seen || 0).toLocaleString('pl-PL')}</td>
+      <td>${formatDate(p.first_seen)}</td>
+      <td>${formatDate(p.last_seen)}</td>
     </tr>
   `).join('');
 }
 
-async function refreshHistory() {
+async function refreshActive() {
   try {
-    const res = await fetch('/api/history');
-    historyData = await res.json();
-    document.getElementById('status-history').textContent =
-      `Ostatnia aktualizacja: ${new Date().toLocaleTimeString('pl-PL')} • ${historyData.length} kont w historii`;
-    applyFilter();
-  } catch (e) {
-    document.getElementById('status-history').textContent = 'Błąd pobierania danych.';
+    const response = await fetch('/api/active', { cache: 'no-store' });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    renderActive(await response.json());
+  } catch (error) {
+    document.getElementById('status-active').textContent = 'Błąd pobierania aktywnych kont.';
+    console.error(error);
   }
 }
 
 function applyFilter() {
-  const q = document.getElementById('search').value.trim().toLowerCase();
-  if (!q) { renderHistory(historyData); return; }
-  const filtered = historyData.filter(p =>
-    p.last_nick.toLowerCase().includes(q) || String(p.account_id).toLowerCase().includes(q)
-  );
+  const query = document.getElementById('search').value.trim().toLowerCase();
+  const filtered = !query ? historyData : historyData.filter(p => {
+    const haystack = [p.account_id, p.last_nick, p.clan, p.world, p.panel_version]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+    return haystack.includes(query);
+  });
+
+  document.getElementById('status-history').textContent =
+    `Spis kont: ${filtered.length}${query ? ` z ${historyData.length}` : ''}`;
   renderHistory(filtered);
 }
 
-document.getElementById('search').addEventListener('input', applyFilter);
+async function refreshHistory() {
+  try {
+    const response = await fetch('/api/history', { cache: 'no-store' });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    historyData = await response.json();
+    applyFilter();
+  } catch (error) {
+    document.getElementById('status-history').textContent = 'Błąd pobierania spisu kont.';
+    console.error(error);
+  }
+}
 
+document.getElementById('search').addEventListener('input', applyFilter);
 refreshActive();
 refreshHistory();
 setInterval(refreshActive, 10000);

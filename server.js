@@ -38,6 +38,7 @@ async function initDb() {
       id SERIAL PRIMARY KEY,
       nick TEXT NOT NULL UNIQUE,
       account_id TEXT,
+      world TEXT,
       premium BOOLEAN DEFAULT false,
       active_addons TEXT[] DEFAULT '{}',
       last_seen TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -51,6 +52,7 @@ async function initDb() {
     CREATE TABLE IF NOT EXISTS players_history (
       account_id TEXT PRIMARY KEY,
       last_nick TEXT NOT NULL,
+      world TEXT,
       premium BOOLEAN DEFAULT false,
       active_addons TEXT[] DEFAULT '{}',
       first_seen TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -58,6 +60,10 @@ async function initDb() {
       times_seen INTEGER NOT NULL DEFAULT 1
     );
   `);
+
+  // Dla baz utworzonych przed dodaniem kolumny "world" - dokłada ją bez utraty danych.
+  await pool.query(`ALTER TABLE players ADD COLUMN IF NOT EXISTS world TEXT;`);
+  await pool.query(`ALTER TABLE players_history ADD COLUMN IF NOT EXISTS world TEXT;`);
 }
 
 function checkAuth(req, res, next) {
@@ -70,7 +76,7 @@ function checkAuth(req, res, next) {
 
 // Skrypt userscript woła to co ~60s dla aktualnie zalogowanej postaci
 app.post('/api/heartbeat', checkAuth, async (req, res) => {
-  const { nick, accountId, premium, activeAddons } = req.body || {};
+  const { nick, accountId, world, premium, activeAddons } = req.body || {};
 
   if (!nick || typeof nick !== 'string' || nick.length > 100) {
     return res.status(400).json({ error: 'invalid nick' });
@@ -81,33 +87,36 @@ app.post('/api/heartbeat', checkAuth, async (req, res) => {
     : [];
 
   const safeAccountId = accountId ? String(accountId).slice(0, 100) : null;
+  const safeWorld = world ? String(world).slice(0, 50) : null;
 
   try {
     // Tabela "na żywo" - jak dotychczas.
     await pool.query(
-      `INSERT INTO players (nick, account_id, premium, active_addons, last_seen)
-       VALUES ($1, $2, $3, $4, now())
+      `INSERT INTO players (nick, account_id, world, premium, active_addons, last_seen)
+       VALUES ($1, $2, $3, $4, $5, now())
        ON CONFLICT (nick) DO UPDATE SET
          account_id = EXCLUDED.account_id,
+         world = EXCLUDED.world,
          premium = EXCLUDED.premium,
          active_addons = EXCLUDED.active_addons,
          last_seen = now();`,
-      [nick, safeAccountId, !!premium, safeAddons]
+      [nick, safeAccountId, safeWorld, !!premium, safeAddons]
     );
 
     // Tabela historii - tylko jeśli mamy account_id (bez niego nie da się sensownie deduplikować).
     // Wpis NIGDY nie jest kasowany, tylko aktualizowany last_seen / times_seen.
     if (safeAccountId) {
       await pool.query(
-        `INSERT INTO players_history (account_id, last_nick, premium, active_addons, first_seen, last_seen, times_seen)
-         VALUES ($1, $2, $3, $4, now(), now(), 1)
+        `INSERT INTO players_history (account_id, last_nick, world, premium, active_addons, first_seen, last_seen, times_seen)
+         VALUES ($1, $2, $3, $4, $5, now(), now(), 1)
          ON CONFLICT (account_id) DO UPDATE SET
            last_nick = EXCLUDED.last_nick,
+           world = EXCLUDED.world,
            premium = EXCLUDED.premium,
            active_addons = EXCLUDED.active_addons,
            last_seen = now(),
            times_seen = players_history.times_seen + 1;`,
-        [safeAccountId, nick, !!premium, safeAddons]
+        [safeAccountId, nick, safeWorld, !!premium, safeAddons]
       );
     }
 
@@ -122,7 +131,7 @@ app.post('/api/heartbeat', checkAuth, async (req, res) => {
 app.get('/api/active', async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT nick, account_id, premium, active_addons, last_seen
+      `SELECT nick, account_id, world, premium, active_addons, last_seen
        FROM players
        WHERE last_seen > now() - interval '${ACTIVE_WINDOW_MINUTES} minutes'
        ORDER BY last_seen DESC;`
@@ -138,7 +147,7 @@ app.get('/api/active', async (req, res) => {
 app.get('/api/history', async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT account_id, last_nick, premium, active_addons, first_seen, last_seen, times_seen
+      `SELECT account_id, last_nick, world, premium, active_addons, first_seen, last_seen, times_seen
        FROM players_history
        ORDER BY last_seen DESC;`
     );

@@ -297,7 +297,6 @@ app.get('/api/history', async (req, res) => {
         last_seen,
         times_seen
       FROM players_history
-      WHERE tracker_schema >= 2
       ORDER BY last_seen DESC;
     `);
     res.json(result.rows);

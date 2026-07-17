@@ -5,6 +5,18 @@ const path = require('path');
 const app = express();
 app.use(express.json());
 
+// CORS: pozwala przeglądarce na stronie margonem.pl wysyłać żądania do tego serwera.
+// Bez tego przeglądarka blokuje fetch() z innej domeny (Cross-Origin Resource Sharing).
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, X-Api-Key');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(204);
+  }
+  next();
+});
+
 // Render Postgres wymaga SSL, ale certyfikat nie zawsze jest w łańcuchu zaufania,
 // dlatego rejectUnauthorized: false (standard przy Render Postgres).
 const pool = new Pool({

@@ -29,7 +29,7 @@
     <div class="status" id="status-active">Ładowanie...</div>
     <table id="table-active" style="display:none">
       <thead>
-        <tr><th>Nick</th><th>ID konta</th><th>Status</th><th>Aktywne dodatki</th><th>Ostatnio widziany</th></tr>
+        <tr><th>Nick</th><th>ID konta</th><th>Świat</th><th>Status</th><th>Aktywne dodatki</th><th>Ostatnio widziany</th></tr>
       </thead>
       <tbody id="tbody-active"></tbody>
     </table>
@@ -43,7 +43,7 @@
     <div class="status" id="status-history">Ładowanie...</div>
     <table id="table-history" style="display:none">
       <thead>
-        <tr><th>ID konta</th><th>Ostatni nick</th><th>Status</th><th>Ile razy widziany</th><th>Pierwszy raz</th><th>Ostatnio</th></tr>
+        <tr><th>ID konta</th><th>Ostatni nick</th><th>Świat</th><th>Status</th><th>Ile razy widziany</th><th>Pierwszy raz</th><th>Ostatnio</th></tr>
       </thead>
       <tbody id="tbody-history"></tbody>
     </table>
@@ -82,6 +82,7 @@ async function refreshActive() {
       <tr>
         <td>${escapeHtml(p.nick)}</td>
         <td>${escapeHtml(p.account_id || '—')}</td>
+        <td>${escapeHtml(p.world || '—')}</td>
         <td class="${p.premium ? 'premium' : 'free'}">${p.premium ? 'Premium' : 'Free'}</td>
         <td class="addons">${(p.active_addons || []).join(', ') || '—'}</td>
         <td>${new Date(p.last_seen).toLocaleTimeString('pl-PL')}</td>
@@ -109,6 +110,7 @@ function renderHistory(data) {
     <tr>
       <td>${escapeHtml(p.account_id)}</td>
       <td>${escapeHtml(p.last_nick)}</td>
+      <td>${escapeHtml(p.world || '—')}</td>
       <td class="${p.premium ? 'premium' : 'free'}">${p.premium ? 'Premium' : 'Free'}</td>
       <td>${p.times_seen}</td>
       <td>${new Date(p.first_seen).toLocaleString('pl-PL')}</td>

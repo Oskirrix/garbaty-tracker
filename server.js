@@ -76,9 +76,7 @@ function checkAuth(req, res, next) {
 
 // Skrypt userscript woła to co ~60s dla aktualnie zalogowanej postaci
 app.post('/api/heartbeat', checkAuth, async (req, res) => {
-
     console.log(req.body);
-
     const { nick, accountId, world, premium, activeAddons } = req.body;
 
   if (!nick || typeof nick !== 'string' || nick.length > 100) {

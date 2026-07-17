@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<title>Garbaty Panel – Aktywni gracze</title>
+<style>
+  body { background:#12121a; color:#eee; font-family: 'Segoe UI', sans-serif; margin:0; padding:30px; }
+  h1 { color:#6c5ce7; font-size:18px; }
+  table { width:100%; border-collapse: collapse; margin-top:20px; }
+  th, td { text-align:left; padding:8px 12px; border-bottom:1px solid #2a2a3a; font-size:13px; }
+  th { color:#888; text-transform:uppercase; font-size:11px; }
+  tr:hover { background: rgba(255,255,255,0.03); }
+  .premium { color:#ffca28; font-weight:bold; }
+  .free { color:#666; }
+  .addons { color:#888; font-size:11px; }
+  .empty { color:#555; padding:30px; text-align:center; }
+  .status { font-size:12px; color:#00ffa3; margin-bottom:10px; }
+</style>
+</head>
+<body>
+  <h1>● Aktywni gracze (ostatnie 5 minut)</h1>
+  <div class="status" id="status">Ładowanie...</div>
+  <table id="table" style="display:none">
+    <thead>
+      <tr><th>Nick</th><th>ID konta</th><th>Status</th><th>Aktywne dodatki</th><th>Ostatnio widziany</th></tr>
+    </thead>
+    <tbody id="tbody"></tbody>
+  </table>
+  <div class="empty" id="empty" style="display:none">Brak aktywnych graczy.</div>
+
+<script>
+async function refresh() {
+  try {
+    const res = await fetch('/api/active');
+    const data = await res.json();
+    const tbody = document.getElementById('tbody');
+    const table = document.getElementById('table');
+    const empty = document.getElementById('empty');
+    const status = document.getElementById('status');
+
+    status.textContent = `Ostatnia aktualizacja: ${new Date().toLocaleTimeString('pl-PL')} • ${data.length} graczy`;
+
+    if (!data.length) {
+      table.style.display = 'none';
+      empty.style.display = 'block';
+      return;
+    }
+    table.style.display = 'table';
+    empty.style.display = 'none';
+
+    tbody.innerHTML = data.map(p => `
+      <tr>
+        <td>${escapeHtml(p.nick)}</td>
+        <td>${escapeHtml(p.account_id || '—')}</td>
+        <td class="${p.premium ? 'premium' : 'free'}">${p.premium ? 'Premium' : 'Free'}</td>
+        <td class="addons">${(p.active_addons || []).join(', ') || '—'}</td>
+        <td>${new Date(p.last_seen).toLocaleTimeString('pl-PL')}</td>
+      </tr>
+    `).join('');
+  } catch (e) {
+    document.getElementById('status').textContent = 'Błąd pobierania danych.';
+  }
+}
+
+function escapeHtml(str) {
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+
+refresh();
+setInterval(refresh, 10000);
+</script>
+</body>
+</html>

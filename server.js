@@ -76,8 +76,23 @@ function checkAuth(req, res, next) {
 
 // Skrypt userscript woła to co ~60s dla aktualnie zalogowanej postaci
 app.post('/api/heartbeat', checkAuth, async (req, res) => {
-    console.log(req.body);
-    const { nick, accountId, world, premium, activeAddons } = req.body;
+  const { nick, accountId, world: payloadWorld, premium, activeAddons } = req.body || {};
+
+  // Główne źródło: wartość wysłana przez userscript.
+  // Awaryjnie odczytujemy świat z nagłówka Origin/Referer, np.
+  // https://luvia.margonem.pl -> "luvia".
+  let detectedWorld = payloadWorld ? String(payloadWorld).trim().toLowerCase() : '';
+
+  if (!detectedWorld || detectedWorld === 'unknown' || detectedWorld === 'www') {
+    const sourceUrl = req.get('origin') || req.get('referer') || '';
+    try {
+      const hostname = new URL(sourceUrl).hostname.toLowerCase();
+      const match = hostname.match(/^([a-z0-9-]+)\.margonem\.pl$/i);
+      if (match && !['www', 'addons', 'addons2'].includes(match[1])) {
+        detectedWorld = match[1];
+      }
+    } catch (_) {}
+  }
 
   if (!nick || typeof nick !== 'string' || nick.length > 100) {
     return res.status(400).json({ error: 'invalid nick' });
@@ -88,7 +103,17 @@ app.post('/api/heartbeat', checkAuth, async (req, res) => {
     : [];
 
   const safeAccountId = accountId ? String(accountId).slice(0, 100) : null;
-  const safeWorld = world ? String(world).slice(0, 50) : null;
+  const safeWorld = detectedWorld
+    ? detectedWorld.replace(/[^a-z0-9-]/gi, '').slice(0, 50)
+    : null;
+
+  console.log('[heartbeat]', {
+    nick,
+    accountId: safeAccountId,
+    worldFromPayload: payloadWorld || null,
+    worldSaved: safeWorld,
+    origin: req.get('origin') || null
+  });
 
   try {
     // Tabela "na żywo" - jak dotychczas.

@@ -2,41 +2,71 @@
 <html lang="pl">
 <head>
 <meta charset="UTF-8">
-<title>Garbaty Panel – Aktywni gracze</title>
+<title>Garbaty Panel – Gracze</title>
 <style>
   body { background:#12121a; color:#eee; font-family: 'Segoe UI', sans-serif; margin:0; padding:30px; }
-  h1 { color:#6c5ce7; font-size:18px; }
-  table { width:100%; border-collapse: collapse; margin-top:20px; }
+  h1 { color:#6c5ce7; font-size:16px; margin-bottom:4px; }
+  .sub { color:#666; font-size:11px; margin-bottom:20px; }
+  section { margin-bottom:40px; }
+  table { width:100%; border-collapse: collapse; margin-top:12px; }
   th, td { text-align:left; padding:8px 12px; border-bottom:1px solid #2a2a3a; font-size:13px; }
   th { color:#888; text-transform:uppercase; font-size:11px; }
   tr:hover { background: rgba(255,255,255,0.03); }
   .premium { color:#ffca28; font-weight:bold; }
   .free { color:#666; }
   .addons { color:#888; font-size:11px; }
-  .empty { color:#555; padding:30px; text-align:center; }
-  .status { font-size:12px; color:#00ffa3; margin-bottom:10px; }
+  .empty { color:#555; padding:20px; text-align:center; }
+  .status { font-size:12px; color:#00ffa3; margin-bottom:6px; }
+  .live-dot { color:#00ffa3; }
+  .hist-dot { color:#6c5ce7; }
+  input#search { background:#1a1a24; border:1px solid #2d2d3d; color:#fff; padding:6px 10px; border-radius:4px; font-size:12px; width:240px; margin-top:8px; }
 </style>
 </head>
 <body>
-  <h1>● Aktywni gracze (ostatnie 5 minut)</h1>
-  <div class="status" id="status">Ładowanie...</div>
-  <table id="table" style="display:none">
-    <thead>
-      <tr><th>Nick</th><th>ID konta</th><th>Status</th><th>Aktywne dodatki</th><th>Ostatnio widziany</th></tr>
-    </thead>
-    <tbody id="tbody"></tbody>
-  </table>
-  <div class="empty" id="empty" style="display:none">Brak aktywnych graczy.</div>
+
+  <section>
+    <h1><span class="live-dot">●</span> Aktywni teraz (ostatnie 5 minut)</h1>
+    <div class="status" id="status-active">Ładowanie...</div>
+    <table id="table-active" style="display:none">
+      <thead>
+        <tr><th>Nick</th><th>ID konta</th><th>Status</th><th>Aktywne dodatki</th><th>Ostatnio widziany</th></tr>
+      </thead>
+      <tbody id="tbody-active"></tbody>
+    </table>
+    <div class="empty" id="empty-active" style="display:none">Brak aktywnych graczy.</div>
+  </section>
+
+  <section>
+    <h1><span class="hist-dot">●</span> Historia – wszyscy, którzy kiedykolwiek użyli</h1>
+    <div class="sub">Ta lista nigdy się nie czyści. Grupowana po ID konta.</div>
+    <input type="text" id="search" placeholder="Szukaj po nicku lub ID konta...">
+    <div class="status" id="status-history">Ładowanie...</div>
+    <table id="table-history" style="display:none">
+      <thead>
+        <tr><th>ID konta</th><th>Ostatni nick</th><th>Status</th><th>Ile razy widziany</th><th>Pierwszy raz</th><th>Ostatnio</th></tr>
+      </thead>
+      <tbody id="tbody-history"></tbody>
+    </table>
+    <div class="empty" id="empty-history" style="display:none">Brak danych.</div>
+  </section>
 
 <script>
-async function refresh() {
+let historyData = [];
+
+function escapeHtml(str) {
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+
+async function refreshActive() {
   try {
     const res = await fetch('/api/active');
     const data = await res.json();
-    const tbody = document.getElementById('tbody');
-    const table = document.getElementById('table');
-    const empty = document.getElementById('empty');
-    const status = document.getElementById('status');
+    const tbody = document.getElementById('tbody-active');
+    const table = document.getElementById('table-active');
+    const empty = document.getElementById('empty-active');
+    const status = document.getElementById('status-active');
 
     status.textContent = `Ostatnia aktualizacja: ${new Date().toLocaleTimeString('pl-PL')} • ${data.length} graczy`;
 
@@ -58,18 +88,62 @@ async function refresh() {
       </tr>
     `).join('');
   } catch (e) {
-    document.getElementById('status').textContent = 'Błąd pobierania danych.';
+    document.getElementById('status-active').textContent = 'Błąd pobierania danych.';
   }
 }
 
-function escapeHtml(str) {
-  const d = document.createElement('div');
-  d.textContent = str;
-  return d.innerHTML;
+function renderHistory(data) {
+  const tbody = document.getElementById('tbody-history');
+  const table = document.getElementById('table-history');
+  const empty = document.getElementById('empty-history');
+
+  if (!data.length) {
+    table.style.display = 'none';
+    empty.style.display = 'block';
+    return;
+  }
+  table.style.display = 'table';
+  empty.style.display = 'none';
+
+  tbody.innerHTML = data.map(p => `
+    <tr>
+      <td>${escapeHtml(p.account_id)}</td>
+      <td>${escapeHtml(p.last_nick)}</td>
+      <td class="${p.premium ? 'premium' : 'free'}">${p.premium ? 'Premium' : 'Free'}</td>
+      <td>${p.times_seen}</td>
+      <td>${new Date(p.first_seen).toLocaleString('pl-PL')}</td>
+      <td>${new Date(p.last_seen).toLocaleString('pl-PL')}</td>
+    </tr>
+  `).join('');
 }
 
-refresh();
-setInterval(refresh, 10000);
+async function refreshHistory() {
+  try {
+    const res = await fetch('/api/history');
+    historyData = await res.json();
+    document.getElementById('status-history').textContent =
+      `Ostatnia aktualizacja: ${new Date().toLocaleTimeString('pl-PL')} • ${historyData.length} kont w historii`;
+    applyFilter();
+  } catch (e) {
+    document.getElementById('status-history').textContent = 'Błąd pobierania danych.';
+  }
+}
+
+function applyFilter() {
+  const q = document.getElementById('search').value.trim().toLowerCase();
+  if (!q) { renderHistory(historyData); return; }
+  const filtered = historyData.filter(p =>
+    p.last_nick.toLowerCase().includes(q) || String(p.account_id).toLowerCase().includes(q)
+  );
+  renderHistory(filtered);
+}
+
+document.getElementById('search').addEventListener('input', applyFilter);
+
+refreshActive();
+refreshHistory();
+setInterval(refreshActive, 10000);
+setInterval(refreshHistory, 30000);
 </script>
 </body>
 </html>

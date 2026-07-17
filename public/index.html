@@ -58,7 +58,10 @@
 
 <section>
   <h1><span class="hist-dot">●</span> Spis kont</h1>
-  <div class="sub">Lista jest grupowana po prawdziwym ID konta Margonem. ID otwiera profil konta.</div>
+  <div class="sub">
+  Pokazuje wszystkich użytkowników z historii. Nowe rekordy są grupowane
+  po ID konta Margonem, a starsze pozostają widoczne do czasu aktualizacji.
+</div>
   <input type="text" id="search" placeholder="Szukaj po ID, nicku, klanie lub świecie...">
   <div class="status" id="status-history">Ładowanie...</div>
   <div class="table-wrap">
@@ -79,7 +82,9 @@
       <tbody id="tbody-history"></tbody>
     </table>
   </div>
-  <div class="empty" id="empty-history" style="display:none">Brak poprawnie rozpoznanych kont.</div>
+  <div class="empty" id="empty-history" style="display:none">
+  Brak zapisanych użytkowników.
+</div>
 </section>
 
 <script>
@@ -91,11 +96,38 @@ function escapeHtml(value) {
   return div.innerHTML;
 }
 
-function accountCell(accountId) {
+function accountCell(accountId, trackerSchema) {
   const id = String(accountId || '').trim();
-  if (!/^\d+$/.test(id)) return '<span class="legacy">oczekuje na aktualizację</span>';
-  const href = `https://www.margonem.pl/profile/view,${encodeURIComponent(id)}`;
-  return `<a class="account-link" href="${href}" target="_blank" rel="noopener noreferrer">${escapeHtml(id)}</a>`;
+
+  if (!id) {
+    return '<span class="legacy">brak ID</span>';
+  }
+
+  // Rekordy ze starego trackera zawierają najczęściej ID postaci,
+  // więc pokazujemy je, ale nie tworzymy błędnego linku do profilu konta.
+  if (Number(trackerSchema || 1) < 2) {
+    return `
+      <span class="legacy" title="Stary rekord — zapisane ID może być ID postaci">
+        ${escapeHtml(id)} (stare)
+      </span>
+    `;
+  }
+
+  if (!/^\d+$/.test(id)) {
+    return `<span class="legacy">${escapeHtml(id)}</span>`;
+  }
+
+  const href =
+    `https://www.margonem.pl/profile/view,${encodeURIComponent(id)}`;
+
+  return `
+    <a
+      class="account-link"
+      href="${href}"
+      target="_blank"
+      rel="noopener noreferrer"
+    >${escapeHtml(id)}</a>
+  `;
 }
 
 function formatDate(value, withDate = true) {
@@ -125,7 +157,7 @@ function renderActive(data) {
   empty.style.display = 'none';
   tbody.innerHTML = data.map(p => `
     <tr>
-      <td>${accountCell(p.account_id)}</td>
+      <td>${accountCell(p.account_id, p.tracker_schema)}</td>
       <td>${escapeHtml(p.nick || '—')}</td>
       <td class="clan">${escapeHtml(p.clan || '—')}</td>
       <td>${escapeHtml(p.world || '—')}</td>
@@ -152,7 +184,7 @@ function renderHistory(data) {
   empty.style.display = 'none';
   tbody.innerHTML = data.map(p => `
     <tr>
-      <td>${accountCell(p.account_id)}</td>
+      <td>${accountCell(p.account_id, p.tracker_schema)}</td>
       <td>${escapeHtml(p.last_nick || '—')}</td>
       <td class="clan">${escapeHtml(p.clan || '—')}</td>
       <td>${escapeHtml(p.world || '—')}</td>

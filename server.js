@@ -90,7 +90,6 @@ function logConfigurationWarnings() {
 
   if (!DISCORD_CLIENT_ID) missingDiscord.push('DISCORD_CLIENT_ID');
   if (!DISCORD_CLIENT_SECRET) missingDiscord.push('DISCORD_CLIENT_SECRET');
-  if (!DISCORD_BOT_TOKEN) missingDiscord.push('DISCORD_BOT_TOKEN');
   if (!DISCORD_GUILD_ID) missingDiscord.push('DISCORD_GUILD_ID');
   if (!DISCORD_BASIC_ROLE_ID) missingDiscord.push('DISCORD_BASIC_ROLE_ID');
   if (!DISCORD_PREMIUM_ROLE_ID) missingDiscord.push('DISCORD_PREMIUM_ROLE_ID');
@@ -121,7 +120,6 @@ function discordAuthConfigured() {
   return Boolean(
     DISCORD_CLIENT_ID &&
     DISCORD_CLIENT_SECRET &&
-    DISCORD_BOT_TOKEN &&
     DISCORD_GUILD_ID &&
     DISCORD_BASIC_ROLE_ID &&
     DISCORD_PREMIUM_ROLE_ID &&
@@ -503,24 +501,32 @@ async function getDiscordCurrentUser(accessToken) {
   return user;
 }
 
-// Bot pobiera jednego konkretnego członka serwera. Nie pobieramy pełnej listy.
-async function checkDiscordAccess(discordUserId) {
+// Role są pobierane bezpośrednio dla konta zalogowanego przez OAuth.
+// Dzięki zakresowi guilds.members.read nie zależymy od tokenu ani pozycji bota.
+async function checkDiscordAccess(accessToken) {
   if (!discordAuthConfigured()) {
     throw new Error('discord_auth_not_configured');
   }
 
   const response = await fetch(
-    `${DISCORD_API_BASE}/guilds/${encodeURIComponent(DISCORD_GUILD_ID)}` +
-    `/members/${encodeURIComponent(discordUserId)}`,
+    `${DISCORD_API_BASE}/users/@me/guilds/${encodeURIComponent(DISCORD_GUILD_ID)}/member`,
     {
       headers: {
-        'Authorization': `Bot ${DISCORD_BOT_TOKEN}`,
+        'Authorization': `Bearer ${accessToken}`,
         'Accept': 'application/json'
       }
     }
   );
 
+  const member = await response.json().catch(() => ({}));
+
   if (response.status === 404) {
+    console.warn('[Discord OAuth member] Użytkownik nie znajduje się na serwerze', {
+      guildId: DISCORD_GUILD_ID,
+      discordCode: member?.code || null,
+      discordMessage: member?.message || null
+    });
+
     return {
       accessLevel: 'none',
       reason: 'not_in_guild',
@@ -528,11 +534,9 @@ async function checkDiscordAccess(discordUserId) {
     };
   }
 
-  const member = await response.json().catch(() => ({}));
-
   if (!response.ok) {
-    console.error('[Discord guild member error]', response.status, member);
-    throw new Error(`discord_member_fetch_failed_${response.status}`);
+    console.error('[Discord OAuth guild member error]', response.status, member);
+    throw new Error(`discord_oauth_member_fetch_failed_${response.status}`);
   }
 
   const roles = Array.isArray(member.roles)
@@ -926,7 +930,7 @@ app.get('/auth/discord/start', (req, res) => {
   authorizationUrl.searchParams.set('client_id', DISCORD_CLIENT_ID);
   authorizationUrl.searchParams.set('response_type', 'code');
   authorizationUrl.searchParams.set('redirect_uri', DISCORD_REDIRECT_URI);
-  authorizationUrl.searchParams.set('scope', 'identify');
+  authorizationUrl.searchParams.set('scope', 'identify guilds.members.read');
   authorizationUrl.searchParams.set('state', state);
 
   res.set('Cache-Control', 'no-store');
@@ -965,7 +969,7 @@ app.get('/auth/discord/callback', async (req, res) => {
   try {
     const oauthToken = await exchangeDiscordCode(code);
     const discordUser = await getDiscordCurrentUser(oauthToken.access_token);
-    const accessCheck = await checkDiscordAccess(discordUser.id);
+    const accessCheck = await checkDiscordAccess(oauthToken.access_token);
     const accessLevel = normalizeAccessLevel(accessCheck.accessLevel);
 
     if (accessLevel === 'none') {
@@ -1075,6 +1079,8 @@ app.get('/api/health', async (req, res) => {
     service: 'garbaty-tracker',
     database,
     discordAuthConfigured: discordAuthConfigured(),
+    roleCheckMethod: 'oauth_guilds_members_read',
+    botTokenConfigured: Boolean(DISCORD_BOT_TOKEN),
     basicRoleConfigured: Boolean(DISCORD_BASIC_ROLE_ID),
     premiumRoleConfigured: Boolean(DISCORD_PREMIUM_ROLE_ID),
     redirectUri: DISCORD_REDIRECT_URI,
